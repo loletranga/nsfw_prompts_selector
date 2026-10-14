@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSFW提示词选择器 · Prompt Selector</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+<style>
+:root{
+  --bg:#100e13;
+  --surface:#18151d;
+  --surface-2:#221d2b;
+  --border:#2c2736;
+  --border-strong:#413a4f;
+  --text:#edeaf2;
+  --dim:#9c94aa;
+  --faint:#686179;
+  --accent:#ff5c8a;
+  --accent-soft:rgba(255,92,138,.12);
+  --accent-border:rgba(255,92,138,.55);
+  --ok:#3ddc84;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --stickyH:150px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  background-image:radial-gradient(1100px 460px at 50% -120px,rgba(255,92,138,.08),transparent 70%);
+  background-repeat:no-repeat;
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Hiragino Sans","PingFang SC","Noto Sans CJK SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ---- brand row (scrolls away) ---- */
+.brand{display:flex;align-items:center;gap:14px;padding:26px 20px 14px;flex-wrap:wrap}
+.brand h1{font-size:22px;margin:0;letter-spacing:.5px;font-weight:700}
+.brand .meta{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.brand .meta b{color:var(--accent);font-weight:600}
+
+/* language switcher */
+.lang{display:inline-flex;border:1px solid var(--border-strong);border-radius:999px;overflow:hidden;flex:none}
+.lang button{background:transparent;border:0;padding:5px 13px;font-size:12.5px;font-weight:600;letter-spacing:.3px;color:var(--dim);transition:color .15s,background .15s}
+.lang button+button{border-left:1px solid var(--border-strong)}
+.lang button:hover{color:var(--text)}
+.lang button[aria-pressed="true"]{background:var(--accent);color:#1c0710}
+
+/* ---- sticky control zone ---- */
+.stickyzone{position:sticky;top:0;z-index:30;background:rgba(16,14,19,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.panel{padding:12px 20px 10px}
+#output{
+  width:100%;resize:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  color:var(--text);font-family:var(--mono);font-size:13.5px;line-height:1.6;padding:12px 14px;
+  min-height:64px;max-height:140px;overflow-y:auto;display:block;
+}
+#output::placeholder{color:var(--faint)}
+#output:focus{border-color:var(--border-strong);outline:none}
+.toolbar{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  background:var(--surface-2);border:1px solid var(--border-strong);border-radius:9px;
+  padding:8px 14px;font-size:13.5px;font-weight:600;letter-spacing:.3px;
+  transition:border-color .15s,background .15s,color .15s,transform .06s;
+  user-select:none;-webkit-user-select:none;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#1c0710}
+.btn-accent:hover{background:#ff7ba1;border-color:#ff7ba1;color:#1c0710}
+.btn.ok{border-color:var(--ok);color:var(--ok);background:transparent}
+.btn.ok:hover{border-color:var(--ok);color:var(--ok)}
+.btn svg{width:15px;height:15px;flex:none}
+.spacer{flex:1}
+.count{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.count b{color:var(--accent);font-weight:600}
+
+/* ---- category nav ---- */
+.catnav{display:flex;gap:6px;overflow-x:auto;padding:2px 20px 10px;scrollbar-width:thin}
+.catnav::-webkit-scrollbar{height:4px}
+.catnav::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px}
+.navlink{
+  flex:none;display:inline-flex;align-items:center;gap:5px;
+  background:transparent;border:1px solid var(--border);border-radius:999px;
+  color:var(--dim);padding:4px 12px;font-size:12.5px;
+  transition:color .15s,border-color .15s;
+}
+.navlink:hover{color:var(--text);border-color:var(--border-strong)}
+.navlink .n{display:none;font-family:var(--mono);font-size:11px;color:var(--accent)}
+.navlink.has-sel{color:var(--text);border-color:var(--accent-border)}
+.navlink.has-sel .n{display:inline}
+
+/* ---- sections ---- */
+main{padding:6px 20px 80px}
+.cat{margin-top:34px;scroll-margin-top:calc(var(--stickyH) + 12px)}
+.cat h2{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:17px;font-weight:700;letter-spacing:.5px}
+.cat h2 .tick{width:4px;height:18px;border-radius:2px;background:var(--accent);flex:none}
+.cat h2 .cnt{font-family:var(--mono);font-size:11px;color:var(--faint);font-weight:400}
+.cat h2 .selbadge{
+  display:none;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent);
+  background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:999px;padding:1px 9px;
+}
+.cat.has-sel h2 .selbadge{display:inline-block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:8px}
+.chip{
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:9px 12px;
+  transition:border-color .12s,background .12s;
+}
+.chip:hover{border-color:var(--border-strong);background:var(--surface-2)}
+.chip .en{font-size:13.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.chip .sub{font-size:11.5px;color:var(--dim);line-height:1.4;overflow-wrap:anywhere}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-border)}
+.chip[aria-pressed="true"] .en{color:var(--accent)}
+.chip[aria-pressed="true"] .sub{color:#c9a3b3}
+body.lang-en .chip .sub{display:none}
+
+footer{border-top:1px solid var(--border)}
+footer>div{padding:18px 20px 40px;color:var(--faint);font-size:12px;font-family:var(--mono)}
+
+@media (max-width:640px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
+  .brand h1{font-size:18px}
+  .brand .meta{display:none}
+  .lang{margin-left:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="brand">
+  <h1><span id="pageTitle">NSFW提示词选择器</span></h1>
+  <div class="lang" role="group" aria-label="Language / 语言">
+    <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+    <button type="button" data-lang="ja" aria-pressed="false">日本語</button>
+    <button type="button" data-lang="en" aria-pressed="false">EN</button>
+  </div>
+  <div class="meta" id="metaLine"></div>
+</header>
+
+<div class="stickyzone" id="stickyzone">
+  <div class="panel">
+    <textarea id="output" rows="2" readonly aria-label="已选提示词"></textarea>
+    <div class="toolbar">
+      <button class="btn btn-accent" id="btnRandom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.3" cy="8.3" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.7" cy="8.3" r="1.5" fill="currentColor" stroke="none"/><circle cx="8.3" cy="15.7" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.7" cy="15.7" r="1.5" fill="currentColor" stroke="none"/></svg>
+        <span class="lbl">每类随机</span>
+      </button>
+      <button class="btn" id="btnCopy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span class="lbl">复制</span>
+      </button>
+      <button class="btn" id="btnClear"><span class="lbl">清空</span></button>
+      <div class="spacer"></div>
+      <span class="count" id="countText"></span>
+    </div>
+  </div>
+  <nav class="catnav" id="catnav" aria-label="类别导航"></nav>
+</div>
+
+<main id="main"></main>
+
+<footer><div id="footerText"></div></footer>
+
+<script>
+const DATA=[{"name":"体位","items":[["missionary position","正常位","传教士式"],["legs up missionary","足上げ正常位","抬腿传教士"],["mating press","まんぐり返し / 種付けプレス","大开脚压制"],["deep missionary","深め正常位","深入传教士"],["cowgirl position","騎乗位","骑乘位"],["reverse cowgirl","逆騎乗位","反向骑乘位"],["doggystyle","バック / 後背位","后入式"],["prone bone","寝バック","趴卧后入"],["standing doggystyle","立ちバック","站立后入"],["spooning sex","側位","侧卧位"],["lotus position","対面座位","对面坐位"],["amazon position","アマゾネス位","亚马逊位"],["piledriver","ピールドライバー","打桩位"],["full nelson","フルネルソン","尼尔森位"],["wheelbarrow sex","手押し車位","手推车位"],["butterfly position","バタフライ位","蝴蝶位"],["suspended congress","駅弁","站立抬举位"],["bridge position","ブリッジ位","桥式位"],["crab position","蟹位","蟹位"],["seashell position","貝殻位","贝壳位"],["happy baby position","ハッピーベイビー","快乐婴儿式"],["tabletop sex","テーブル上位","桌上位"],["valedictorian position","バレディクトリアン","毕业生代表位"],["pretzel position","プレッツェル位","扭麻花位"],["side entry","横入り","侧入式"],["face-to-face straddle","対面跨ぎ","对面跨坐"],["back to front","背面抱き","背面相拥"],["anal missionary","アナル正常位","肛交传教士位"],["all fours","四つん這い","四足跪姿"],["bent over table","テーブルに突っ伏し","伏于桌上"],["wall press doggy","壁押しバック","扶墙后入"],["desk missionary","机上正常位","桌上传教士位"],["carry fuck","抱き上げ位","抱起式"],["one leg raised","片足上げ","单腿抬起"],["arms behind head missionary","腕頭上正常位","双臂过头传教士位"],["close legs missionary","閉脚正常位","并腿传教士位"],["spread legs doggy","脚開きバック","开腿后入"],["reverse piledriver","逆ピールドライバー","反向打桩位"],["double penetration position","二穴同時","双穴同插"],["spitroast position","串刺し位","串刺位"],["gangbang pile","輪姦積み重ね","轮奸叠压"],["ekiben carry","駅弁持ち上げ","抬举移动式"],["I-shape balance","I字バランス","I字平衡"],["M-shape open legs","M字開脚挿入","M字开腿进入"],["face sitting cowgirl","顔面騎乗","骑脸"],["reverse face sitting","逆顔面騎乗","反向骑脸"],["shower standing","シャワー立ちバック","淋浴站立后入"],["car backseat","車内後部座席位","车内后座位"],["bath tub position","浴槽位","浴缸位"],["intense deep thrust doggy","激しい深バック","激烈深插后入"],["slow grinding cowgirl","腰振り騎乗位","摇摆腰骑乘位"],["rapid piston missionary","高速ピストン正常位","高速活塞传教士位"],["anal spooning","アナル側位","肛交侧卧位"],["double leg lock","両脚ロック位","双腿锁位"],["overhead leg press","頭上脚押し","头上压腿"]],"zh":"体位","en":"Sex Positions"},{"name":"ポーズ・体勢","items":[["spread legs","脚開き / M字開脚","开腿 / M字开脚"],["arched back","腰反らし","弓背挺腰"],["top down bottom up","尻突き出し","跪趴翘臀"],["all fours","四つん這い","四足跪姿"],["kneeling","膝立ち","跪立"],["hands behind back","腕後ろ手","反剪双手"],["arms raised","腕上げ","双臂上举"],["hand bra","手ブラ","双手遮胸"],["bent over","前屈み","弯腰前屈"],["legs over head","脚頭上","双腿过头"],["crab walk pose","蟹歩きポーズ","螃蟹步姿势"],["bridge pose","ブリッジ","桥式"],["split legs","股割り","劈叉"],["one leg up","片足上げ","单腿抬起"],["sitting on heels","踵座り","跪坐"],["lying on stomach ass up","うつ伏せ尻上げ","趴卧翘臀"],["standing with hands on wall","壁手つき","扶墙站立"],["squatting","しゃがみ","蹲姿"],["pigeon toe","内股立ち","内八站立"],["wide stance","腰広げ立ち","宽距站立"],["back arched doggy","反りバック","后弓后入"],["face down ass up","顔伏せ尻上げ","脸朝下翘臀"],["side lying spread","横寝脚開き","侧卧开腿"],["overhead arms","頭上腕","手臂举过头顶"],["crossed legs tease","脚組み誘惑","跷腿诱惑"],["bent knee pose","膝曲げ","屈膝姿势"],["hip thrust","腰突き出し","挺胯"],["torso twist","上半身ひねり","上身扭转"],["shoulder stand","肩立ち","肩倒立"],["lotus fold","蓮華座折り","莲坐折叠"],["eagle spread","鷲開き","鹰式展开"],["pretzel fold","プレッツェル折り","扭麻花折叠"],["happy baby hold","ハッピーベイビー抱え","快乐婴儿式抱腿"],["wheelbarrow hold","手押し車","手推车式"],["full nelson hold","フルネルソン抱き","尼尔森式拘束抱"],["amazon squat","アマゾネスしゃがみ","亚马逊蹲姿"],["reverse bridge","逆ブリッジ","反向桥式"],["legs behind head","脚頭後ろ","腿别到脑后"],["arms pinned","腕押さえ","双臂被按住"],["hair pull pose","髪引き","扯发姿势"],["neck grab","首掴み","掐住脖子"],["waist grab","腰掴み","抓腰"],["breast lift","胸持ち上げ","托胸"],["ass spread","尻広げ","掰臀"],["pussy spread","まんこ広げ","掰开小穴"],["tongue out arched","舌出し反らし","吐舌后弓"],["eyes rolled back","目上白","翻白眼"],["ahegao spread","あへ顔開脚","阿黑颜开腿"],["afterglow lying","絶頂後横たわり","高潮后横卧"],["seductive kneel","誘惑膝立ち","诱惑跪姿"],["wall lean","壁寄りかかり","靠墙斜倚"],["table sit spread","テーブル座り開脚","桌坐开腿"],["chair reverse straddle","椅子逆跨ぎ","椅子反向跨坐"],["bed edge hang","ベッド端掛け","悬于床沿"],["mirror pose","鏡前ポーズ","镜前姿势"]],"zh":"姿势·体势","en":"Poses & Postures"},{"name":"前戯","items":[["french kiss","ディープキス","深吻"],["ear licking","耳舐め","舔耳"],["neck kiss","首筋キス","吻颈"],["nipple licking","乳首舐め","舔乳头"],["breast massage","胸揉み","揉胸"],["fingering","指マン","指交"],["clitoris stimulation","クリトリス弄り","刺激阴蒂"],["cunnilingus","クンニ","舔阴"],["deep throat fellatio","イラマチオ","深喉口交"],["handjob","手コキ","手交"],["paizuri","パイズリ / titjob","乳交"],["thighjob","素股","腿交"],["footjob","足コキ","足交"],["anal rimming","アナル舐め","舔肛"],["prostate massage","前立腺刺激","按摩前列腺"],["lotion play","ローション塗り","涂润滑液"],["ice cube tease","氷責め","冰块调教"],["feather tickle","羽根くすぐり","羽毛挠痒"],["nipple pinch","乳首摘み","捏乳头"],["spanking foreplay","尻叩き前戯","打臀前戏"],["hair pull tease","髪引き誘惑","扯发挑逗"],["eye contact blowjob","目合わせフェラ","对视口交"],["ball licking","玉舐め","舔蛋蛋"],["ass massage","尻揉み","揉臀"],["pussy rubbing","まんこ擦り","磨蹭小穴"],["tongue kiss deep","舌絡みキス","舌吻缠绵"],["ear bite","耳噛み","轻咬耳朵"],["neck lick","首舐め","舔颈"],["underboob kiss","アンダーブーブキス","吻乳下"],["sideboob lick","サイドブーブ舐め","舔侧乳"],["armpit lick","脇舐め","舔腋下"],["navel play","へそ責め","玩弄肚脐"],["inner thigh kiss","太もも内側キス","吻大腿内侧"],["toe sucking","足指しゃぶり","吮吸脚趾"],["finger sucking","指しゃぶり","吮吸手指"],["vibrator tease","ローター前戯","跳蛋前戏"],["dildo foreplay","ディルド挿入前","假阳具前戏"],["nipple clamp tease","乳首クリップ","乳头夹"],["wax drip","ロウ滴らし","滴蜡"],["blindfold tease","目隠し前戯","蒙眼前戏"],["whispering dirty talk","囁き","耳语撩拨"],["breath play light","息責め","轻度憋息"],["hair stroking","髪撫で","抚发"],["back massage","背中マッサージ","背部按摩"],["butt plug tease","アナルプラグ前戯","肛塞前戏"],["prostate finger","前立腺指","指按前列腺"],["g-spot stimulation","Gスポット","刺激G点"],["squirting build-up","潮吹き前準備","潮吹前奏"],["edging handjob","寸止め手コキ","寸止手交"],["multiple orgasm tease","連続イキ前戯","连续高潮前戏"],["slow licking","ゆっくり舐め","缓慢舔弄"],["rapid tongue","高速舌","高速舔动"],["suction nipples","吸い付き乳首","吸吮乳头"],["deep fingering","奥指マン","深抠"],["rimjob deep","深アナル舐め","深舔肛"]],"zh":"前戏","en":"Foreplay"},{"name":"複数プレイ","items":[["threesome","3P","3P"],["foursome","4P","4P"],["gangbang","輪姦","轮奸"],["orgy","乱交","乱交"],["bukkake","ぶっかけ","轮射"],["spitroast","串刺し","串刺（前后夹击）"],["double penetration","二穴同時","双穴同插"],["double vaginal","二穴膣","双插阴道"],["double anal","二穴アナル","双插肛门"],["triple penetration","三穴","三穴同插"],["creampie gangbang","中出し輪姦","中出轮奸"],["facial gangbang","顔射輪姦","颜射轮奸"],["train","列車プレイ","列车接龙"],["lesbian threesome","レズ3P","百合3P"],["MMF threesome","男2女1","两男一女"],["FFM threesome","女2男1","两女一男"],["daisy chain","輪姦連鎖","连环互口"],["circle suck","輪フェラ","围圈口交"],["double blowjob","ダブルフェラ","双人口交"],["sandwich position","サンドイッチ","三明治位"],["airtight","完全密着3穴","三穴全占"],["reverse train","逆列車","反向接龙"],["public gangbang","公開輪姦","公开轮奸"],["office gangbang","オフィス輪姦","办公室轮奸"],["school gangbang","学校輪姦","校园轮奸"],["tentacle gangbang","触手複数","触手群交"],["monster gangbang","モンスター複数","魔物群交"],["futa gangbang","ふたなり輪姦","扶他轮奸"],["yuri orgy","百合乱交","百合乱交"],["bukkake facial","顔面ぶっかけ","颜面群射"],["cum shower","精液シャワー","精液淋浴"],["creampie pile","中出し積み","中出堆积"],["double creampie","連続中出し","连续中出"],["anal train","アナル列車","肛交接龙"],["pussy train","まんこ列車","小穴接龙"],["handjob circle","手コキ輪","手交围圈"],["paizuri circle","パイズリ輪","乳交围圈"],["kissing orgy","キス乱交","亲吻乱交"],["nipple play group","乳首責め複数","群体玩乳"],["fingering gang","指マン輪姦","指交轮奸"],["vibrator gang","ローター複数","跳蛋群用"],["dildo gang","ディルド輪","假阳具围玩"],["strap-on gangbang","ストラップオン輪姦","绑带假阳具轮奸"],["hypnosis group","催眠複数","催眠群交"],["sleeping gangbang","睡眠姦複数","睡奸群交"],["netorare gang","寝取られ輪姦","NTR轮奸"],["public train molestation","電車痴漢複数","电车痴汉群"],["bath orgy","混浴乱交","混浴乱交"],["pool gangbang","プール輪姦","泳池轮奸"],["beach orgy","ビーチ乱交","沙滩乱交"],["tentacle multiple","触手多重","触手多重"],["monster triple","モンスター3穴","魔物三穴"],["futa double","ふたなり二穴","扶他双插"],["lesbian gang","レズ輪","百合群交"],["bukkake shower","精液シャワー","精液淋浴"]],"zh":"多人玩法","en":"Group Play"},{"name":"胸・乳首","items":[["huge breasts","巨乳","巨乳"],["massive breasts","爆乳","爆乳"],["gigantic breasts","超巨乳","超巨乳"],["small breasts","貧乳","贫乳"],["flat chest","ロリ胸 / 貧乳平ら","平坦胸部"],["perky breasts","張り胸","挺翘美乳"],["sagging breasts","垂れ乳","下垂乳房"],["bouncing breasts","揺れ乳","晃动的乳房"],["veiny breasts","血管浮き乳","青筋浮现的乳房"],["lactating breasts","母乳乳","泌乳乳房"],["puffy nipples","ぷっくり乳首","凸起乳头"],["inverted nipples","陥没乳首","内陷乳头"],["erect nipples","勃起乳首","勃起乳头"],["pink nipples","ピンク乳首","粉色乳头"],["dark nipples","黒乳首","黑色乳头"],["large areola","大乳輪","大乳晕"],["nipple piercing","乳首ピアス","乳环"],["nipple clamps","乳首クリップ","乳头夹"],["nipple pinch","乳首摘み","捏乳头"],["nipple lick","乳首舐め","舔乳头"],["paizuri","パイズリ","乳交"],["breast grab","胸鷲掴み","抓握双乳"],["cleavage","谷間","乳沟"],["underboob","アンダーブーブ","乳下弧线"],["sideboob","サイドブーブ","侧乳"],["topless","上半身裸","上身赤裸"],["breast milk spray","母乳噴射","母乳喷射"],["cum on breasts","乳射精","射在胸上"],["nipple suck","乳首吸い","吸吮乳头"],["breast squeeze","胸圧し","挤压双乳"],["breast expansion","胸膨張","胸部膨胀"],["tiny breasts","微乳","微乳"],["medium breasts","普通乳","普通胸部"],["heavy breasts","重乳","沉甸甸的乳房"],["soft breasts","柔乳","柔软乳房"],["firm breasts","張乳","紧实乳房"],["shiny oiled breasts","オイル光乳","油光乳房"],["sweaty breasts","汗乳","汗湿乳房"],["cum covered breasts","精液まみれ乳","精液覆盖的乳房"],["bite mark breasts","噛み跡乳","带齿痕的乳房"],["handprint breasts","手形乳","带掌印的乳房"],["rope tied breasts","縄乳","绳缚乳房"],["nipple torture","乳首責め","乳头调教"],["electric nipple","電乳首","电击乳头"],["hot wax nipples","ロウ乳首","蜡滴乳头"],["vibrating nipples","振動乳首","振动乳头"],["suction nipples","吸引乳首","吸引乳头"],["swollen nipples","腫れ乳首","红肿乳头"],["sensitive nipples","敏感乳首","敏感乳头"],["multiple nipples","多乳首","多个乳头"],["glowing nipples","光乳首","发光乳头"],["heart shaped areola","ハート乳輪","心形乳晕"],["tattooed breasts","タトゥー乳","纹身乳房"],["pierced multiple","多重ピアス乳","多重乳环"],["lactating huge","母乳爆乳","泌乳爆乳"]],"zh":"胸部·乳头","en":"Breasts & Nipples"},{"name":"陰部","items":[["pussy","まんこ","小穴"],["spread pussy","くぱぁ","张开的小穴"],["wet pussy","濡れまんこ","湿润的小穴"],["dripping pussy","愛液ダラダラ","蜜液滴淌"],["swollen pussy","腫れまんこ","肿胀的小穴"],["pink pussy","ピンクまんこ","粉嫩小穴"],["tight pussy","きつい膣","紧窄的穴"],["loose pussy","ゆる膣","松弛的穴"],["shaved pussy","パイパン","白虎"],["hairy pussy","陰毛","有阴毛"],["clitoris","クリトリス","阴蒂"],["labia","大陰唇","大阴唇"],["inner labia","小陰唇","小阴唇"],["anus","アナル","菊穴"],["spread anus","アナルくぱぁ","张开的菊穴"],["cock","ちんぽ","肉棒"],["erect cock","勃起ちんぽ","勃起的肉棒"],["veiny cock","血管ちんぽ","青筋暴起的肉棒"],["huge cock","巨根","巨根"],["small cock","小根","小肉棒"],["balls","玉","睾丸"],["precum","我慢汁","前液"],["creampie","中出し","中出"],["cum from pussy","まんこ精液逆流","精液倒流"],["squirting","潮吹き","潮吹"],["gushing pussy","噴き出し","喷涌"],["cameltoe","キャメルトゥ","骆驼趾"],["cameltoe panties","食い込み","夹唇内裤痕"],["anal gape","アナル拡張","菊穴扩张"],["pussy gape","まんこ拡張","小穴扩张"],["double penetration pussy","二穴まんこ","双插小穴"],["double penetration anus","二穴アナル","双插菊穴"],["futa cock","ふたなりちんぽ","扶他肉棒"],["futa pussy","ふたなりまんこ","扶他小穴"],["tentacle pussy","触手まんこ","触手侵入小穴"],["monster cock","モンスター根","魔物巨根"],["pierced pussy","ピアスまんこ","带环小穴"],["tattooed pussy","タトゥーまんこ","纹身小穴"],["swollen clit","腫れクリ","肿胀的阴蒂"],["sensitive clit","敏感クリ","敏感的阴蒂"],["throbbing cock","脈打つちんぽ","悸动的肉棒"],["cum dripping cock","精液滴ちんぽ","滴着精液的肉棒"],["ass to pussy","尻からまんこ","从菊穴换到小穴"],["pussy to mouth","まんこから口","从小穴到嘴"],["cum swap","精液交換","精液交换"],["deep throat cock","喉奥ちんぽ","深入喉部的肉棒"],["balls deep","根元まで","整根没入"],["cervix penetration","子宮口突き","顶入子宫口"],["womb creampie","子宮中出し","子宫内中出"],["overflowing creampie","溢れ中出し","满溢的中出"],["anal creampie","アナル中出し","肛内中出"],["pussy juice flood","愛液洪水","蜜液洪水"],["squirting orgasm","潮吹き絶頂","潮吹高潮"],["double creampie","連続中出し","连续中出"],["triple penetration","三穴同時","三穴同插"]],"zh":"阴部","en":"Genitals"},{"name":"体型","items":[["curvy","グラマー","曲线丰润"],["voluptuous","むっちり","丰满肉感"],["hourglass figure","砂時計体型","沙漏身材"],["slim thick","細身むっちり","纤腰厚臀"],["petite","小柄","娇小"],["chubby","ぽっちゃり","微胖"],["plump","肉付き","丰腴"],["thick thighs","太もも肉厚","厚实大腿"],["big ass","巨尻","巨臀"],["wide hips","広い腰","宽胯"],["slim waist","細腰","细腰"],["large breasts body","巨乳体型","巨乳体型"],["flat chest body","貧乳体型","贫乳体型"],["athletic","筋肉質","健美肌肉型"],["toned abs","腹筋","腹肌"],["pregnant belly","妊娠腹","孕肚"],["milf body","熟女体型","熟女身材"],["loli body","ロリ体型","萝莉体型"],["tall slender","長身スレンダー","高挑纤细"],["shortstack","低身長巨尻","娇小巨臀"],["hyper curvy","極むっちり","极致肉感"],["exaggerated hips","極腰","夸张臀胯"],["massive ass","超巨尻","超巨臀"],["tiny waist","極細腰","极细腰"],["busty petite","小柄巨乳","娇小巨乳"],["chubby cheeks","ぽちゃ顔","婴儿肥脸"],["soft belly","柔腹","柔软小腹"],["love handles","腰肉","腰侧软肉"],["thunder thighs","太腿","粗壮大腿"],["bubble butt","プリ尻","蜜桃臀"],["heart shaped ass","ハート尻","心形臀"],["inverted heart ass","逆ハート尻","倒心形臀"],["muscular thighs","筋肉太もも","肌肉大腿"],["slender legs","細脚","纤细双腿"],["long legs","長脚","长腿"],["short legs","短脚","短腿"],["wide shoulders","広い肩","宽肩"],["narrow shoulders","細肩","窄肩"],["hourglass extreme","極砂時計","极致沙漏"],["pear shape","洋梨型","梨形身材"],["apple shape","林檎型","苹果形身材"],["athletic curvy","スポーツグラマー","运动型曲线"],["soft chubby","柔ぽちゃ","软糯微胖"],["firm chubby","引き締めぽちゃ","紧致微胖"],["hyper breasts","極巨乳","极巨乳"],["hyper ass","極巨尻","极巨臀"],["hyper thighs","極太もも","极粗大腿"],["realistic body","リアル体型","写实体型"],["anime body","アニメ体型","动漫体型"],["hentai exaggerated","エロ誇張","里番式夸张"],["pregnant curvy","妊娠グラマー","孕期曲线"],["lactating milf","母乳熟女","泌乳熟女"],["futa body","ふたなり体型","扶他体型"],["monster girl body","モンスター娘","魔物娘身体"],["tentacle body","触手体","触手体质"]],"zh":"体型","en":"Body Types"},{"name":"パンツ","items":[["thong","Tバック","丁字裤"],["g-string","Gストリング","G弦裤"],["lace panties","レースパンツ","蕾丝内裤"],["crotchless panties","クロッチレス","开裆内裤"],["wet panties","濡れパンツ","湿透的内裤"],["soaked panties","びしょ濡れ","浸湿内裤"],["stained panties","汚れパンツ","污渍内裤"],["pulled aside panties","ずらしパンツ","拨开内裤"],["torn panties","破れパンツ","破损内裤"],["down to ankles","足首パンツ","褪至脚踝"],["white cotton panties","白綿パンツ","白色棉质内裤"],["black lace panties","黒レース","黑色蕾丝"],["pink micro panties","ピンク極小","粉色极小内裤"],["red thong","赤Tバック","红色丁字裤"],["striped panties","縞パン","条纹内裤"],["polka dot panties","水玉","波点内裤"],["sheer see-through","シースルー","透视内裤"],["satin panties","サテン","缎面内裤"],["leather panties","レザー","皮革内裤"],["latex panties","ラテックス","乳胶内裤"],["schoolgirl panties","スク水下","学生内裤"],["maid panties","メイドパンツ","女仆内裤"],["bikini panties","ビキニ","比基尼内裤"],["boyshorts","ボーイショーツ","平角内裤"],["high waist panties","ハイウェスト","高腰内裤"],["low rise panties","ローライズ","低腰内裤"],["edible panties","食べられる","可食用内裤"],["vibrating panties","振動パンツ","振动内裤"],["remote control panties","リモコンパンツ","遥控内裤"],["chastity panties","貞操帯","贞操裤"],["open crotch","開股","开裆"],["backless panties","後ろなし","无后片内裤"],["side tie panties","サイドタイ","侧系带内裤"],["heart print","ハート柄","爱心图案"],["cat print","猫柄","猫咪图案"],["cum stained","精液染み","精液污渍"],["pussy juice soaked","愛液染み","蜜液浸渍"],["bite mark panties","噛み跡","齿痕"],["handprint panties","手形","掌印"],["rope under panties","縄下パンツ","内裤下的绳索"],["garter belt panties","ガーターベルト","吊袜带"],["stockings with panties","ストッキング付き","配丝袜"],["micro bikini panties","極小ビキニ","极小比基尼"],["transparent panties","透明","透明内裤"],["glowing panties","光る","发光内裤"],["animated panties","アニメ柄","动漫图案"],["ripped fishnet panties","破れ網","破洞渔网内裤"],["wet white cotton","白綿濡れ","湿白棉内裤"],["black thong pulled aside","黒Tずらし","拨开黑色丁字裤"],["pink lace crotchless","ピンクレース開股","粉色蕾丝开裆裤"],["striped school panties","縞スク","条纹学生内裤"],["maid frill panties","メイドフリル","女仆褶边内裤"],["cum dripping panties","精液滴","滴精内裤"],["squirt soaked","潮濡れ","潮吹浸湿"],["double layered wet","二重濡れ","双层湿透"]],"zh":"内裤","en":"Panties"},{"name":"ブラジャー","items":[["lace bra","レースブラ","蕾丝胸罩"],["push-up bra","プッシュアップ","聚拢胸罩"],["cupless bra","カップなし","无罩杯胸罩"],["open cup bra","開カップ","开罩杯胸罩"],["strapless bra","ストラップレス","无肩带胸罩"],["front clasp bra","前ホック","前扣胸罩"],["back clasp bra","後ホック","后扣胸罩"],["sheer bra","シースルー","透视胸罩"],["satin bra","サテン","缎面胸罩"],["leather bra","レザー","皮革胸罩"],["latex bra","ラテックス","乳胶胸罩"],["micro bra","極小ブラ","极小胸罩"],["bikini bra","ビキニブラ","比基尼上装"],["sports bra","スポーツ","运动胸罩"],["nursing bra","授乳ブラ","哺乳胸罩"],["vibrating bra","振動ブラ","振动胸罩"],["nipple cover bra","乳首隠し","乳头遮罩"],["pasties","パステ","乳贴"],["bra lift","ブラ上げ","上推胸罩"],["bra pull down","ブラ下げ","褪下胸罩"],["bra removed","ブラ脱ぎ","脱掉胸罩"],["bra in teeth","歯にブラ","牙叼胸罩"],["cum on bra","精液ブラ","射在胸罩上"],["wet bra","濡れブラ","湿透胸罩"],["stained bra","汚れブラ","污渍胸罩"],["torn bra","破れブラ","破损胸罩"],["black lace bra","黒レース","黑色蕾丝胸罩"],["white cotton bra","白綿","白色棉质胸罩"],["pink micro bra","ピンク極小","粉色极小胸罩"],["red push-up","赤プッシュ","红色聚拢胸罩"],["striped bra","縞ブラ","条纹胸罩"],["polka dot bra","水玉","波点胸罩"],["heart print bra","ハート","爱心胸罩"],["school bra","スクール","学生胸罩"],["maid bra","メイド","女仆胸罩"],["bunny bra","バニー","兔女郎胸罩"],["nurse bra","ナース","护士胸罩"],["garter bra set","ガーターセット","吊袜带套装"],["rope bra","縄ブラ","绳缚胸罩"],["chain bra","鎖ブラ","锁链胸罩"],["piercing bra","ピアス付き","带环胸罩"],["glowing bra","光る","发光胸罩"],["transparent bra","透明","透明胸罩"],["edible bra","食べられる","可食用胸罩"],["chastity bra","貞操","贞操胸罩"],["remote bra","リモコン","遥控胸罩"],["nipple clamp bra","クリップ付き","带夹胸罩"],["sweat stained","汗染み","汗渍"],["milk stained","母乳染み","乳渍"],["cum covered bra","精液まみれ","精液覆盖"],["sideboob bra","サイドブーブ","露侧乳胸罩"],["underboob bra","アンダーブーブ","露乳下胸罩"],["cleavage bra","谷間強調","深沟聚拢胸罩"],["bouncing bra","揺れブラ","晃动的胸罩"],["removed mid-sex","セックス中脱ぎ","做爱中脱掉"]],"zh":"胸罩","en":"Bras"},{"name":"体液","items":[["cum","精液","精液"],["thick cum","濃厚精液","浓稠精液"],["sticky semen","粘着精液","粘稠精液"],["creamy cum","クリーミー","乳白浓精"],["overflowing creampie","溢れ中出し","满溢中出"],["facial cum","顔射","颜射"],["bukkake","ぶっかけ","轮射"],["cum on tongue","舌上精液","舌上精液"],["cum on breasts","乳射","射在胸上"],["cum on ass","尻射","射在臀上"],["pussy juice","愛液","蜜液"],["squirting","潮吹き","潮吹"],["gushing squirt","噴き出し","喷涌潮吹"],["drool","よだれ","口水"],["ahegao drool","あへよだれ","阿黑颜流涎"],["sweat","汗","汗水"],["sweaty body","全身汗","全身大汗"],["tears of pleasure","悦び涙","悦泪"],["breast milk","母乳","母乳"],["spraying milk","噴射母乳","喷射母乳"],["precum","我慢汁","前液"],["precum string","糸引き","拉丝前液"],["saliva","唾液","唾液"],["deep throat saliva","喉奥唾","深喉唾液"],["pussy juice puddle","愛液溜まり","蜜液水洼"],["cum puddle","精液溜まり","精液水洼"],["mixed fluids","混合体液","混合体液"],["cum and squirt mix","精潮混合","精潮混合"],["sticky saliva","粘着唾","粘稠唾液"],["oily lotion","オイル","油液"],["lotion drip","ローション滴","润滑液滴落"],["urine","尿","尿液"],["golden shower","ゴールデンシャワー","黄金淋浴"],["light pee","軽尿","少量尿液"],["cum dripping","精液滴り","精液滴落"],["squirt spray","潮噴射","潮吹喷射"],["milk spray","母乳噴射","母乳喷射"],["sweat beads","汗玉","汗珠"],["tear streaks","涙筋","泪痕"],["cum bubble","精液泡","精液泡沫"],["drool bubble","よだれ泡","口水泡"],["overflowing mouth","口溢れ","满口溢出"],["double creampie overflow","二重溢れ","双重中出满溢"],["anal creampie drip","アナル滴","肛内精液滴落"],["pussy to mouth cum","まんこ→口精液","小穴到口的精液"],["snowballing","精液交換","精液交换"],["cum string","精液糸","精液拉丝"],["thick rope cum","太縄精液","浓粗精液"],["volume explosion","大量射精","大量射精"],["endless creampie","無限中出し","无限中出"],["squirting orgasm flood","絶頂潮洪水","高潮潮吹洪水"],["milk and cum mix","母乳精液","母乳精液混合"],["sweat and drool","汗よだれ","汗水口水"],["tears and cum","涙精液","泪水精液"],["full body fluids","全身体液まみれ","全身沾满体液"]],"zh":"体液","en":"Body Fluids"},{"name":"表情","items":[["ahegao","あへ顔","阿黑颜"],["orgasm face","イキ顔","高潮脸"],["tongue out","舌出し","吐舌"],["rolled eyes","目上白","翻白眼"],["heart shaped pupils","目ハート","心形瞳孔"],["blushing","赤面","脸红"],["biting lip","唇噛み","咬唇"],["seductive eyes","色目","媚眼"],["half closed eyes","半目","半睁眼"],["crying tears of joy","悦び泣き","喜极而泣"],["glassy eyes","虚ろ目","失神的双眼"],["torogao","トロ顔","陶醉脸"],["open mouth","口開け","张口"],["drooling mouth","よだれ口","流口水"],["smiling seductively","誘惑笑み","诱惑微笑"],["shocked orgasm","驚きイキ","惊愕高潮"],["embarrassed blush","羞恥赤面","羞耻红脸"],["angry tease","怒り誘惑","嗔怒诱惑"],["afterglow smile","絶頂後笑み","高潮后微笑"],["exhausted face","疲労顔","疲惫的脸"],["begging eyes","懇願目","哀求的眼神"],["dominant glare","女王様目","女王的眼神"],["submissive gaze","服従目","顺从的目光"],["winking","ウィンク","眨眼"],["side eye","横目","斜眼"],["upturned eyes","上目遣い","上挑的眼神"],["crossed eyes","寄り目","斗鸡眼"],["spiral eyes","ぐるぐる目","漩涡眼"],["sweat drop face","汗滴顔","挂汗的脸"],["vein pop angry","青筋","暴起青筋"],["heart eyes","ハート目","爱心眼"],["star eyes","星目","星星眼"],["tear drop","涙滴","泪滴"],["cum on face","顔射表情","颜射表情"],["cum swallow","飲み込み顔","吞精表情"],["squirting face","潮吹き顔","潮吹表情"],["multiple orgasm","連続イキ顔","连续高潮表情"],["mind break","メス堕ち顔","雌堕表情"],["ecstasy","恍惚","恍惚"],["pleasure overload","快楽過多","快感过载"],["laughing orgasm","笑いイキ","笑着高潮"],["screaming orgasm","叫びイキ","尖叫高潮"],["whispering moan","囁き喘ぎ","低语喘息"],["biting finger","指噛み","咬手指"],["hand over mouth","手口","捂嘴"],["tongue bite","舌噛み","咬舌"],["lip lick","唇舐め","舔唇"],["eyebrow raise","眉上げ","挑眉"],["seductive smirk","誘惑ニヤリ","诱惑坏笑"],["broken smile","壊れ笑み","崩坏的笑容"],["ahegao with heart","あへハート","阿黑颜爱心眼"],["rolled eyes tongue","目上白舌","翻白眼吐舌"],["drool ahegao","よだれあへ","流涎阿黑颜"],["cum face ahegao","精液あへ","精液阿黑颜"],["ultimate orgasm face","究極イキ顔","究极高潮脸"]],"zh":"表情","en":"Facial Expressions"},{"name":"衣装","items":[["maid outfit","メイド服","女仆装"],["school uniform","セーラー服","水手服"],["bunny suit","バニーガール","兔女郎装"],["nurse uniform","ナース","护士服"],["police uniform","警察","警服"],["swimsuit","スクール水着","学校泳装"],["micro bikini","極小ビキニ","极小比基尼"],["latex catsuit","ラテックス","乳胶紧身衣"],["leather dominatrix","レザー女王","皮革女王装"],["wedding dress torn","破れウェディング","破损婚纱"],["kimono open","着物乱れ","和服凌乱"],["shrine maiden","巫女","巫女服"],["cheerleader","チア","啦啦队服"],["tennis outfit","テニスウェア","网球服"],["yoga pants","ヨガパンツ","瑜伽裤"],["office lady suit","OLスーツ","OL套装"],["teacher outfit","教師","教师装"],["doctor coat","白衣","白大褂"],["idol costume","アイドル","偶像装"],["gothic lolita","ゴスロリ","哥特萝莉装"],["chinese dress","チャイナドレス","旗袍"],["santa costume","サンタ","圣诞装"],["halloween witch","魔女","魔女装"],["cat ears tail","猫耳尻尾","猫耳尾巴"],["fox ears","狐耳","狐耳"],["devil horns","悪魔","恶魔角"],["angel wings","天使","天使翅膀"],["robot suit","ロボ","机器人装"],["alien costume","宇宙人","外星人装"],["superheroine","ヒロイン","女英雄装"],["torn clothes","破れた服","破损的衣服"],["ripped stockings","破れストッキング","破洞丝袜"],["fishnet","網タイツ","渔网袜"],["garter belt set","ガーターベルト","吊袜带套装"],["lingerie set","ランジェリー","性感内衣套装"],["babydoll","ベビードール","娃娃装睡衣"],["corset","コルセット","束腰马甲"],["collar and leash","首輪リード","项圈牵引绳"],["naked apron","エプロン裸","裸体围裙"],["naked ribbon","リボン裸","裸体缎带"],["body paint","ボディペイント","人体彩绘"],["transparent dress","透けドレス","透明连衣裙"],["micro skirt","極小スカート","极短裙"],["no bra shirt","ブラなしシャツ","无胸罩衬衫"],["no panties skirt","ノーパンスカート","无内裤短裙"],["wet t-shirt","濡れTシャツ","湿身T恤"],["cum stained clothes","精液染み服","精液污渍的衣服"],["ripped school uniform","破れ制服","破损制服"],["public exposure outfit","露出服","露出装"],["hypnosis costume","催眠衣装","催眠衣装"],["tentacle outfit","触手衣装","触手衣装"],["monster girl costume","モンスター娘","魔物娘装"],["futa outfit","ふたなり服","扶他装"],["bondage outfit","ボンデージ","拘束衣装"],["ultimate slut outfit","極エロ衣装","极致色情衣装"]],"zh":"服装","en":"Outfits"},{"name":"SM","items":[["shibari","緊縛","紧缚"],["rope bondage","縄","绳缚"],["turtle shell bondage","亀甲縛り","龟甲缚"],["ball gag","ボールギャグ","口球"],["blindfold","目隠し","蒙眼"],["collar and leash","首輪リード","项圈牵引绳"],["handcuffs","手錠","手铐"],["chains","鎖","锁链"],["whip","鞭","皮鞭"],["spanking","尻叩き","打屁股"],["nipple clamps","乳首クリップ","乳头夹"],["wax play","ロウ燭","滴蜡调教"],["electric play","電マ / 電撃","电击play"],["suspension","吊り","吊缚"],["crotch rope","股縄","股绳"],["chastity cage","貞操帯","贞操锁"],["dominatrix","女王様","女王"],["submissive","服従","臣服"],["pet play","ペットプレイ","宠物play"],["master slave","主従","主仆"],["pain play","痛み責め","疼痛调教"],["pleasure torture","快楽拷問","快感拷问"],["edging","寸止め","寸止"],["denial","禁止","高潮禁止"],["forced orgasm","強制絶頂","强制高潮"],["impact play","衝撃","击打play"],["breath play","息責め","窒息play"],["knife play","刃物","刀刃play"],["fire play","火","火play"],["ice play","氷","冰play"],["sensory deprivation","感覚遮断","感觉剥夺"],["humiliation","屈辱","羞辱"],["verbal abuse","言葉責め","言语调教"],["public play","公開","公开play"],["pet collar","ペット首輪","宠物项圈"],["tail plug","尻尾プラグ","尾巴肛塞"],["ear plugs","耳栓","耳塞"],["hood","フード","头套"],["straitjacket","拘束衣","拘束衣"],["pillory","首枷","颈手枷"],["stocks","足枷","足枷"],["spreader bar","脚開き棒","开腿棒"],["nipple weights","乳首重り","乳头重锤"],["pussy weights","まんこ重り","小穴重锤"],["anal hook","アナルフック","肛钩"],["breast bondage","胸縛り","胸部紧缚"],["full body rope","全身縄","全身缚绳"],["suspension harness","吊り具","吊具"],["whipping marks","鞭痕","鞭痕"],["bite marks","噛み跡","齿痕"],["rope burn","縄痕","绳痕"],["aftercare","アフターケア","事后护理"],["sadist smile","サディスト笑み","施虐者的微笑"],["masochist begging","マゾ懇願","受虐者哀求"],["extreme bondage","極緊縛","极端紧缚"]],"zh":"SM","en":"SM & Bondage"},{"name":"アダルトグッズ","items":[["dildo","ディルド","假阳具"],["vibrator","バイブレーター","振动棒"],["anal beads","アナルビーズ","后庭拉珠"],["butt plug","アナルプラグ","肛塞"],["prostate massager","前立腺","前列腺按摩器"],["hitachi magic wand","電マ","日立魔棒"],["sybian","サイビアン","西比安骑乘机"],["fleshlight","オナホール","名器飞机杯"],["onahole","オナホール","飞机杯"],["cock ring","コックリング","锁精环"],["nipple clamps","乳首クリップ","乳头夹"],["pussy pump","まんこポンプ","小穴吸引器"],["clit sucker","クリ吸引","阴蒂吸吮器"],["rabbit vibrator","ラビット","兔耳振动棒"],["wand vibrator","ワンド","魔棒振动器"],["bullet vibrator","小型ローター","小型跳蛋"],["egg vibrator","卵型","卵形跳蛋"],["remote vibrator","リモコン","遥控振动器"],["strap-on","ストラップオン","绑带式假阳具"],["double dildo","二頭ディルド","双头假阳具"],["anal hook","アナルフック","肛钩"],["spreader bar","脚開き","开腿棒"],["ball gag","ボールギャグ","口球"],["ring gag","リングギャグ","环形张口器"],["blindfold","目隠し","蒙眼罩"],["collar","首輪","项圈"],["leash","リード","牵引绳"],["paddle","パドル","责打板"],["flogger","フリッパー","多尾鞭"],["cane","杖","藤条"],["chastity cage","貞操帯","贞操锁"],["urethral sound","尿道","尿道扩张棒"],["speculum","拡張器","扩阴器"],["enema kit","浣腸","灌肠器"],["nipple suction","乳首吸引","乳头吸引器"],["vacuum pump","吸引ポンプ","真空吸引器"],["electro stim","電極","电击刺激器"],["tens unit","低周波","低频治疗仪"],["fucking machine","機械","性爱机器"],["sex doll","ラブドール","硅胶娃娃"],["inflatable doll","空気人形","充气娃娃"],["tentacle dildo","触手ディルド","触手假阳具"],["monster dildo","巨大","巨大假阳具"],["horse dildo","馬","马形假阳具"],["knot dildo","結び目","犬结假阳具"],["vibrating plug","振動プラグ","振动肛塞"],["thrusting dildo","ピストン","伸缩假阳具"],["suction cup dildo","吸盤","吸盘假阳具"],["double ended","両頭","双头假阳具"],["realistic skin","リアルスキン","拟真皮肤"],["glowing toy","光る","发光玩具"],["flavored lube toy","味付き","调味润滑"],["warming toy","温感","温感玩具"],["cooling toy","冷感","冷感玩具"],["extreme size toy","極大","极大号玩具"]],"zh":"成人用品","en":"Adult Toys"},{"name":"シチュエーション","items":[["office seduction","オフィス誘惑","办公室诱惑"],["teacher student","教師生徒","师生"],["doctor patient","医者患者","医生与患者"],["public restroom","公衆トイレ","公共厕所"],["train molestation","電車痴漢","电车痴汉"],["school classroom","学校教室","学校教室"],["love hotel","ラブホ","情侣酒店"],["bath sex","お風呂","浴室性爱"],["shower sex","シャワー","淋浴性爱"],["car sex","車内","车内性爱"],["beach sex","ビーチ","沙滩性爱"],["pool sex","プール","泳池性爱"],["tent sex","テント","帐篷性爱"],["hypnosis","催眠","催眠"],["sleeping sex","睡眠姦","睡奸"],["netorare","寝取られ","NTR"],["blackmail","脅迫","胁迫"],["maid service","メイド奉仕","女仆侍奉"],["nurse night shift","ナース夜勤","护士夜班"],["boss secretary","上司秘書","上司与秘书"],["public exposure","公開露出","公开露出"],["glory hole","グローリーホール","光荣洞"],["tentacle monster","触手","触手怪物"],["alien abduction","宇宙人","外星人诱拐"],["vampire bite","吸血鬼","吸血鬼之吻"],["demon contract","悪魔","恶魔契约"],["ghost possession","幽霊","灵体附身"],["robot domination","ロボット","机器人支配"],["futa revelation","ふたなり発覚","扶他曝光"],["yuri confession","百合告白","百合告白"],["orgy party","乱交パーティー","乱交派对"],["gangbang revenge","復讐輪姦","复仇轮奸"],["mind control","洗脳","洗脑"],["aphrodisiac","媚薬","媚药"],["time stop","時間停止","时间停止"],["clone sex","クローン","克隆人性爱"],["mirror sex","鏡前","镜前性爱"],["virtual reality","VR","虚拟现实"],["dream sex","夢","梦中性爱"],["afterlife sex","あの世","阴间性爱"],["prison sex","刑務所","监狱性爱"],["hospital bed","病室","病房"],["elevator","エレベーター","电梯"],["library","図書館","图书馆"],["cinema","映画館","电影院"],["dark alley","路地裏","小巷深处"],["forest","森","森林"],["mountain","山","山野"],["spaceship","宇宙船","宇宙飞船"],["fantasy castle","ファンタジー城","幻想城堡"],["school rooftop","学校屋上","学校天台"],["office after hours","残業","加班时分"],["hot spring","温泉","温泉"],["festival","祭り","祭典"],["apocalypse survival sex","終末","末世求生性爱"]],"zh":"情境","en":"Scenarios"}];
+
+const I18N={
+  zh:{
+    title:'NSFW提示词选择器 · Prompt Selector',htmlLang:'zh-CN',
+    pageTitle:'NSFW提示词选择器',
+    random:'每类随机',randomTitle:'从每个类别中随机抽取一个关键词',
+    copy:'复制',copyTitle:'复制输入框内容到剪贴板',
+    clear:'清空',clearTitle:'取消全部选择',
+    copied:'✓ 已复制',copyFail:'复制失败',empty:'无内容',
+    selected:n=>`已选 <b>${n}</b> 项`,badge:n=>`已选 ${n}`,
+    placeholder:'点击下方按钮选择关键词，内容会显示在这里；再次点击可取消选择。',
+    cats:'类',items:'词条',
+    footer:'点击按钮切换选择 · 每类随机 = 每个类别抽一个',
+  },
+  ja:{
+    title:'NSFWプロンプトセレクター · Prompt Selector',htmlLang:'ja',
+    pageTitle:'NSFWプロンプトセレクター',
+    random:'ランダム抽出',randomTitle:'各カテゴリから1つずつランダムに抽出',
+    copy:'コピー',copyTitle:'入力欄の内容をクリップボードにコピー',
+    clear:'クリア',clearTitle:'すべての選択を解除',
+    copied:'✓ コピーしました',copyFail:'コピー失敗',empty:'中身なし',
+    selected:n=>`<b>${n}</b> 件選択中`,badge:n=>`選択 ${n}`,
+    placeholder:'下のボタンをクリックしてキーワードを選ぶと、ここに入力されます。もう一度クリックで解除。',
+    cats:'カテゴリ',items:'語',
+    footer:'チップをクリックで選択切替 · ランダム = 各カテゴリから1つ',
+  },
+  en:{
+    title:'NSFW Prompt Selector',htmlLang:'en',
+    pageTitle:'NSFW Prompt Selector',
+    random:'Random',randomTitle:'Pick one random keyword from each category',
+    copy:'Copy',copyTitle:'Copy the content to the clipboard',
+    clear:'Clear',clearTitle:'Deselect all',
+    copied:'✓ Copied',copyFail:'Copy failed',empty:'Nothing to copy',
+    selected:n=>`<b>${n}</b> selected`,badge:n=>`${n} selected`,
+    placeholder:'Click the buttons below to pick keywords — they appear here. Click again to deselect.',
+    cats:'categories',items:'keywords',
+    footer:'click a chip to toggle · random = one per category',
+  },
+};
+
+const $=s=>document.querySelector(s);
+const out=$('#output');
+const nav=$('#catnav');
+const main=$('#main');
+const selected=new Set(); // "catIdx:itemIdx"
+const reduceMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+const total=DATA.reduce((n,c)=>n+c.items.length,0);
+
+const LANG_KEY='ps-lang';
+let lang='zh';
+try{const saved=localStorage.getItem(LANG_KEY);if(saved&&I18N[saved])lang=saved;}catch(e){}
+
+const dispName=cat=>lang==='ja'?cat.name:lang==='en'?cat.en:cat.zh;
+const subText=it=>lang==='ja'?it[1]:lang==='zh'?it[2]:'';
+
+/* render nav + sections; keep refs for language switching */
+const navNames=[],secNames=[],secBadges=[],subs=[];
+DATA.forEach((cat,ci)=>{
+  const b=document.createElement('button');
+  b.type='button'; b.className='navlink'; b.dataset.cat=ci;
+  const nm=document.createElement('span');
+  const n=document.createElement('span'); n.className='n';
+  b.append(nm,n);
+  b.addEventListener('click',()=>document.getElementById('cat-'+ci).scrollIntoView({behavior:reduceMotion()?'auto':'smooth',block:'start'}));
+  nav.appendChild(b); navNames.push(nm);
+
+  const sec=document.createElement('section');
+  sec.className='cat'; sec.id='cat-'+ci;
+  const h=document.createElement('h2');
+  h.innerHTML='<span class="tick"></span>';
+  const hn=document.createElement('span');
+  const cnt=document.createElement('span'); cnt.className='cnt'; cnt.textContent=cat.items.length;
+  const badge=document.createElement('span'); badge.className='selbadge';
+  h.append(hn,cnt,badge);
+  const grid=document.createElement('div'); grid.className='grid';
+  cat.items.forEach((it,ii)=>{
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='chip'; btn.dataset.k=ci+':'+ii;
+    btn.setAttribute('aria-pressed','false');
+    const en=document.createElement('span'); en.className='en'; en.textContent=it[0];
+    const sub=document.createElement('span'); sub.className='sub';
+    btn.append(en,sub); grid.appendChild(btn);
+    subs.push({el:sub,it});
+  });
+  sec.append(h,grid); main.appendChild(sec);
+  secNames.push(hn); secBadges.push(badge);
+});
+
+/* language switching */
+function applyLang(){
+  const t=I18N[lang];
+  document.documentElement.lang=t.htmlLang;
+  document.title=t.title;
+  $('#pageTitle').textContent=t.pageTitle;
+  document.body.classList.toggle('lang-en',lang==='en');
+  document.querySelectorAll('.lang button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.lang===lang?'true':'false'));
+  $('#metaLine').innerHTML=`prompts.md · ${DATA.length} ${t.cats} · <b>${total}</b> ${t.items}`;
+  $('#footerText').textContent=t.footer;
+  out.placeholder=t.placeholder;
+  out.setAttribute('aria-label',t.placeholder);
+  $('#btnRandom .lbl').textContent=t.random; $('#btnRandom').title=t.randomTitle;
+  $('#btnCopy .lbl').textContent=t.copy;     $('#btnCopy').title=t.copyTitle;
+  $('#btnClear .lbl').textContent=t.clear;   $('#btnClear').title=t.clearTitle;
+  navNames.forEach((el,ci)=>el.textContent=dispName(DATA[ci]));
+  secNames.forEach((el,ci)=>el.textContent=dispName(DATA[ci]));
+  subs.forEach(({el,it})=>el.textContent=subText(it));
+  sync();
+}
+document.querySelectorAll('.lang button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    lang=b.dataset.lang;
+    try{localStorage.setItem(LANG_KEY,lang);}catch(e){}
+    clearTimeout(copyTimer);
+    btnCopy.classList.remove('ok');
+    applyLang();
+  });
+});
+
+/* toggle chips (event delegation) */
+document.addEventListener('click',e=>{
+  const chip=e.target.closest('.chip');
+  if(!chip) return;
+  const k=chip.dataset.k;
+  selected.has(k)?selected.delete(k):selected.add(k);
+  sync();
+});
+
+function currentText(){
+  const parts=[];
+  DATA.forEach((cat,ci)=>cat.items.forEach((it,ii)=>{
+    if(selected.has(ci+':'+ii)) parts.push(it[0]);
+  }));
+  return parts.join(', ');
+}
+
+function sync(){
+  out.value=currentText();
+  out.scrollTop=out.scrollHeight;
+  const per=new Array(DATA.length).fill(0);
+  selected.forEach(k=>per[+k.split(':')[0]]++);
+  document.querySelectorAll('.chip').forEach(ch=>{
+    ch.setAttribute('aria-pressed',selected.has(ch.dataset.k)?'true':'false');
+  });
+  nav.querySelectorAll('.navlink').forEach((b,ci)=>{
+    b.classList.toggle('has-sel',per[ci]>0);
+    b.querySelector('.n').textContent=per[ci]>0?' '+per[ci]:'';
+  });
+  secBadges.forEach((el,ci)=>el.textContent=I18N[lang].badge(per[ci]));
+  document.querySelectorAll('.cat').forEach((sec,ci)=>{
+    sec.classList.toggle('has-sel',per[ci]>0);
+  });
+  $('#countText').innerHTML=I18N[lang].selected(selected.size);
+}
+
+/* random: one per category */
+$('#btnRandom').addEventListener('click',()=>{
+  selected.clear();
+  DATA.forEach((cat,ci)=>{
+    selected.add(ci+':'+Math.floor(Math.random()*cat.items.length));
+  });
+  sync();
+  window.scrollTo({top:0,behavior:reduceMotion()?'auto':'smooth'});
+});
+
+/* clear all */
+$('#btnClear').addEventListener('click',()=>{selected.clear();sync();});
+
+/* copy */
+const btnCopy=$('#btnCopy');
+const copyLblEl=btnCopy.querySelector('.lbl');
+let copyTimer;
+btnCopy.addEventListener('click',async()=>{
+  const t=out.value;
+  let ok=false;
+  if(t){
+    try{ await navigator.clipboard.writeText(t); ok=true; }
+    catch(_){
+      const ta=document.createElement('textarea');
+      ta.value=t; ta.style.cssText='position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      try{ ok=document.execCommand('copy'); }catch(__){}
+      ta.remove();
+    }
+  }
+  copyLblEl.textContent=t?(ok?I18N[lang].copied:I18N[lang].copyFail):I18N[lang].empty;
+  btnCopy.classList.toggle('ok',ok);
+  clearTimeout(copyTimer);
+  copyTimer=setTimeout(()=>{copyLblEl.textContent=I18N[lang].copy;btnCopy.classList.remove('ok');},1500);
+});
+
+/* keep scroll offset in sync with sticky bar height */
+function measure(){
+  document.documentElement.style.setProperty('--stickyH',$('#stickyzone').offsetHeight+'px');
+}
+measure();
+addEventListener('resize',measure);
+applyLang();
+</script>
+</body>
+</html>
